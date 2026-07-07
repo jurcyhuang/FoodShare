@@ -1594,7 +1594,7 @@ export default function App() {
                         <Sparkles size={16} /> 快速上架即期剩食
                       </h3>
                       
-                      <form onSubmit={handleCreateFood} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      <form onSubmit={handleCreateFood} className="merchant-upload-form">
                         <div className="form-group">
                           <label>食物商品名稱</label>
                           <input

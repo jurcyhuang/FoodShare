@@ -1373,3 +1373,49 @@ body {
 .star-rating-btn.active {
   color: var(--alert-warn);
 }
+
+/* ========================================================
+   RESPONSIVE MOBILE OVERRIDES (防止手機左右滑動與版面溢出)
+   ======================================================== */
+@media (max-width: 768px) {
+  /* 縮減商家面板的內邊距，提供更多顯示空間 */
+  .dashboard-panel {
+    padding: 1rem !important;
+  }
+
+  /* 讓上架剩食表單在手機上單欄排列，防止寬度溢出 */
+  .merchant-upload-form {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .merchant-upload-form .form-group {
+    grid-column: span 1 !important;
+  }
+
+  /* 限制統計卡片網格的欄數，讓它們在小螢幕上垂直排列 */
+  .stats-cards-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* 商家表格的容器允許橫向滾動，而非撐寬整個頁面 */
+  .dashboard-table-container {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 確保表格在滾動時有足夠的最低寬度，而不會被擠壓文字 */
+  .dashboard-table {
+    min-width: 650px !important;
+  }
+
+  /* 商家左右網格佈局 */
+  .merchant-grid {
+    gap: 1rem !important;
+  }
+}
+
+/* 全域寬度限制，徹底消除手機瀏覽器左右滑動問題 */
+html, body, #root, .app-wrapper {
+  max-width: 100vw;
+  overflow-x: hidden;
+}

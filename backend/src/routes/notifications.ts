@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { db } from '../db';
+import { db, Order } from '../db';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
@@ -25,7 +25,7 @@ router.get('/stats', authenticateToken, (req: AuthenticatedRequest, res: Respons
   db.checkExpirations();
 
   const allOrders = db.getOrders();
-  let claimedOrders = [];
+  let claimedOrders: Order[] = [];
 
   if (user.role === 'store') {
     const store = db.getStoreByUserId(user.id);

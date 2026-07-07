@@ -1724,7 +1724,7 @@ export default function App() {
                     <div>
                       <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem' }}>本店當前上架剩食</h3>
                       <div className="dashboard-table-container">
-                        <table className="dashboard-table">
+                        <table className="dashboard-table listings-table">
                           <thead>
                             <tr>
                               <th>商品照片</th>
@@ -1791,7 +1791,7 @@ export default function App() {
                     </p>
 
                     <div className="dashboard-table-container">
-                      <table className="dashboard-table">
+                      <table className="dashboard-table orders-table">
                         <thead>
                           <tr>
                             <th>訂單編號</th>

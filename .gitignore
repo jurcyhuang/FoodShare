@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Local databases
+backend/db.json
+
+# Environment configuration
+.env
+.env.local
+.env.development
+.env.production
+
+# Build artifacts
+dist/
+dist-ssr/
+*.tsbuildinfo
+
+# OS Metadata
+.DS_Store
+Thumbs.db

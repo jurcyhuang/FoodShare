@@ -1218,6 +1218,16 @@ export default function App() {
                                     放棄預訂 (取消保留)
                                   </button>
                                 )}
+
+                                {order.status === 'cancelled' && (
+                                  <button
+                                    className="btn-submit"
+                                    style={{ width: '100%', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', margin: '0.5rem 0 0 0' }}
+                                    onClick={() => setClientActiveTab('explore')}
+                                  >
+                                    回到首頁瀏覽剩食
+                                  </button>
+                                )}
                               </div>
                             ))}
                           </div>

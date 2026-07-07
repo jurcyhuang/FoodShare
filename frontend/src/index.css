@@ -191,12 +191,16 @@ body {
   box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
 }
 
-/* Left Panel: Simulated Mobile Client */
 .mobile-panel {
   flex: 0 0 420px;
-  display: flex;
+  display: none; /* 預設隱藏，只在 active 時顯示 */
   justify-content: center;
   align-items: flex-start;
+  margin: 0 auto;
+}
+
+.mobile-panel.active {
+  display: flex;
 }
 
 @media (max-width: 1024px) {
@@ -294,7 +298,6 @@ body {
   color: var(--accent-primary);
 }
 
-/* Right Panel: Web Dashboard */
 .dashboard-panel {
   flex: 1;
   background: var(--glass-bg);
@@ -302,18 +305,14 @@ body {
   border-radius: 20px;
   box-shadow: var(--glass-glow);
   padding: 2rem;
-  display: flex;
+  display: none; /* 預設隱藏，只在 active 時顯示 */
   flex-direction: column;
   overflow: hidden;
+  width: 100%;
 }
 
-@media (max-width: 1024px) {
-  .dashboard-panel {
-    display: none; /* hidden if not selected on mobile layout */
-  }
-  .dashboard-panel.active {
-    display: flex;
-  }
+.dashboard-panel.active {
+  display: flex;
 }
 
 .dashboard-title {

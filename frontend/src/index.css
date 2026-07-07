@@ -1410,6 +1410,27 @@ body {
 
 /* 手機版表格自適應卡片設計 (完全免左右滑動，排版更直觀) */
 @media (max-width: 600px) {
+  /* 手機版停用 iPhone 外框模擬器，直接以真實手機全螢幕滿版顯示，解決底部導覽列被遮擋與重疊的問題 */
+  .iphone-frame {
+    width: 100% !important;
+    height: 100vh !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  .mobile-app-screen {
+    border-radius: 0 !important;
+    height: 100% !important;
+  }
+  .iphone-notch {
+    display: none !important;
+  }
+  .mobile-panel {
+    flex: 1 !important;
+    width: 100% !important;
+    padding: 0 !important;
+  }
+
   /* 強制表格轉換為 block，取消 table 預設的橫向延展特性 */
   .dashboard-table.listings-table,
   .dashboard-table.listings-table tbody,

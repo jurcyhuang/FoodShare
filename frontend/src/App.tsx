@@ -75,6 +75,21 @@ interface Stats {
   creditScore: number;
 }
 
+const getCategoryPlaceholder = (category: string) => {
+  switch (category) {
+    case '便當':
+      return 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=150&auto=format&fit=crop&q=60';
+    case '麵包':
+      return 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=150&auto=format&fit=crop&q=60';
+    case '生鮮':
+      return 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=150&auto=format&fit=crop&q=60';
+    case '熟食':
+      return 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=150&auto=format&fit=crop&q=60';
+    default:
+      return 'https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=150&auto=format&fit=crop&q=60';
+  }
+};
+
 export default function App() {
   // Shared config state
   const [apiUrl, setApiUrl] = useState(import.meta.env.VITE_API_URL || 'http://localhost:3001');
@@ -1008,7 +1023,7 @@ export default function App() {
                           <div className="food-list">
                             {foods.map(food => (
                               <div key={food.id} className="food-card" onClick={() => setSelectedFood(food)}>
-                                <img src={food.photoUrl} alt={food.name} className="food-card-img" />
+                                <img src={food.photoUrl} alt={food.name} className="food-card-img" onError={(e) => { (e.target as HTMLImageElement).src = getCategoryPlaceholder(food.category); }} />
                                 <div className="food-card-info">
                                   <div className="food-card-title">{food.name}</div>
                                   <div className="food-card-store">
@@ -1038,7 +1053,7 @@ export default function App() {
                           &larr; 返回列表
                         </div>
                         
-                        <img src={selectedFood.photoUrl} alt={selectedFood.name} className="detail-img" />
+                        <img src={selectedFood.photoUrl} alt={selectedFood.name} className="detail-img" onError={(e) => { (e.target as HTMLImageElement).src = getCategoryPlaceholder(selectedFood.category); }} />
 
                         <div className="detail-body">
                           <h2>{selectedFood.name}</h2>
@@ -1136,7 +1151,7 @@ export default function App() {
                             {clientOrders.map(order => (
                               <div key={order.id} className="order-reserved-box">
                                 <div style={{ display: 'flex', width: '100%', gap: '0.75rem', textAlign: 'left' }}>
-                                  <img src={order.foodPhoto} alt={order.foodName} style={{ width: '50px', height: '50px', borderRadius: '6px', objectFit: 'cover' }} />
+                                  <img src={order.foodPhoto} alt={order.foodName} style={{ width: '50px', height: '50px', borderRadius: '6px', objectFit: 'cover' }} onError={(e) => { (e.target as HTMLImageElement).src = getCategoryPlaceholder(''); }} />
                                   <div style={{ flex: 1 }}>
                                     <h4 style={{ fontSize: '0.85rem', fontWeight: 700 }}>{order.foodName} x {order.quantity}</h4>
                                     <p style={{ fontSize: '0.7rem', color: '#9ca3af' }}>{order.storeName}</p>
@@ -1758,7 +1773,7 @@ export default function App() {
                               merchantListings.map(item => (
                                 <tr key={item.id}>
                                   <td>
-                                    <img src={item.photoUrl} alt={item.name} style={{ width: '40px', height: '40px', borderRadius: '4px', objectFit: 'cover' }} />
+                                    <img src={item.photoUrl} alt={item.name} style={{ width: '40px', height: '40px', borderRadius: '4px', objectFit: 'cover' }} onError={(e) => { (e.target as HTMLImageElement).src = getCategoryPlaceholder(item.category); }} />
                                   </td>
                                   <td style={{ fontWeight: 600 }}>{item.name}</td>
                                   <td>{item.category}</td>

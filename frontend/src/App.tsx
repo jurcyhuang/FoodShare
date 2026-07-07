@@ -77,7 +77,7 @@ interface Stats {
 
 export default function App() {
   // Shared config state
-  const [apiUrl, setApiUrl] = useState('http://localhost:3001');
+  const [apiUrl, setApiUrl] = useState(import.meta.env.VITE_API_URL || 'http://localhost:3001');
   const [isWsConnected, setIsWsConnected] = useState(false);
   const [splitViewTab, setSplitViewTab] = useState<'mobile' | 'merchant'>('mobile');
 

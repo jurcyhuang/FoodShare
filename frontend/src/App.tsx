@@ -264,7 +264,7 @@ export default function App() {
       if (merchantToken) fetchMerchantOrders();
     }, 10000);
     return () => clearInterval(timer);
-  }, [clientCategory, clientSearch, clientToken, merchantToken]);
+  }, [clientCategory, clientSearch, clientRadius, clientToken, merchantToken, apiUrl]);
 
   // API Call Helpers
   const fetchClientProfile = async () => {
@@ -982,15 +982,39 @@ export default function App() {
                           </svg>
                         </div>
 
-                        {/* Search Bar */}
-                        <div className="search-box">
-                          <Search size={14} />
-                          <input
-                            type="text"
-                            placeholder="搜尋商品或商家..."
-                            value={clientSearch}
-                            onChange={(e) => setClientSearch(e.target.value)}
-                          />
+                        {/* Search Bar & Radius Selector */}
+                        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                          <div className="search-box" style={{ flex: 1, marginBottom: 0 }}>
+                            <Search size={14} />
+                            <input
+                              type="text"
+                              placeholder="搜尋商品或商家..."
+                              value={clientSearch}
+                              onChange={(e) => setClientSearch(e.target.value)}
+                            />
+                          </div>
+                          
+                          <select
+                            value={clientRadius}
+                            onChange={(e) => setClientRadius(Number(e.target.value))}
+                            style={{
+                              background: 'var(--bg-secondary)',
+                              border: '1px solid rgba(255, 255, 255, 0.05)',
+                              borderRadius: '10px',
+                              padding: '0 0.5rem',
+                              color: 'var(--accent-primary)',
+                              fontWeight: 600,
+                              fontSize: '0.8rem',
+                              outline: 'none',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <option value={1} style={{ background: 'var(--bg-primary)', color: '#fff' }}>1 公里</option>
+                            <option value={3} style={{ background: 'var(--bg-primary)', color: '#fff' }}>3 公里</option>
+                            <option value={5} style={{ background: 'var(--bg-primary)', color: '#fff' }}>5 公里</option>
+                            <option value={10} style={{ background: 'var(--bg-primary)', color: '#fff' }}>10 公里</option>
+                            <option value={20} style={{ background: 'var(--bg-primary)', color: '#fff' }}>20 公里</option>
+                          </select>
                         </div>
 
                         {/* Category filter pills */}

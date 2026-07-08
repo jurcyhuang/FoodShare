@@ -107,6 +107,7 @@ router.get('/', authenticateToken, (req: AuthenticatedRequest, res: Response) =>
     const food = db.getFoodById(order.foodId);
     const store = db.getStoreById(order.storeId);
     const buyer = db.getUserById(order.buyerId);
+    const hasRating = db.getRatings().some(r => r.orderId === order.id);
     return {
       ...order,
       foodName: food ? food.name : '未知剩食',
@@ -114,7 +115,39 @@ router.get('/', authenticateToken, (req: AuthenticatedRequest, res: Response) =>
       storeName: store ? store.name : '未知店家',
       storeAddress: store ? store.address : '',
       storePhone: store ? store.phone : '',
-      buyerName: buyer ? buyer.username : '匿名用戶'
+      buyerName: buyer ? buyer.username : '匿名用戶',
+      isRated: hasRating
+    };
+  }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  res.json(populated);
+});
+
+// GET /api/orders/ratings - 獲取評價列表
+router.get('/ratings', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+  const user = req.user!;
+  
+  let ratings = db.getRatings();
+
+  if (user.role === 'store') {
+    const store = db.getStoreByUserId(user.id);
+    if (store) {
+      ratings = ratings.filter(r => r.storeId === store.id);
+    } else {
+      ratings = [];
+    }
+  } else {
+    ratings = ratings.filter(r => r.buyerId === user.id);
+  }
+
+  // Populate details
+  const populated = ratings.map(r => {
+    const buyer = db.getUserById(r.buyerId);
+    const food = db.getFoodById(r.foodId);
+    return {
+      ...r,
+      buyerName: buyer ? buyer.username : '匿名買家',
+      foodName: food ? food.name : '未知剩食'
     };
   }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 

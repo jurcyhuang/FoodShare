@@ -43,6 +43,7 @@ interface Order {
   storeAddress?: string;
   storePhone?: string;
   buyerName?: string;
+  isRated?: boolean;
 }
 
 interface Rating {
@@ -55,6 +56,8 @@ interface Rating {
   storeRating: number;
   comment: string;
   createdAt: string;
+  buyerName?: string;
+  foodName?: string;
 }
 
 interface Notification {
@@ -249,6 +252,7 @@ export default function App() {
   useEffect(() => {
     if (merchantToken) {
       fetchMerchantProfile();
+      fetchMerchantReviews();
     } else {
       setMerchantUser(null);
       setMerchantStore(null);
@@ -261,7 +265,10 @@ export default function App() {
     const timer = setInterval(() => {
       fetchClientFoods();
       if (clientToken) fetchClientOrders();
-      if (merchantToken) fetchMerchantOrders();
+      if (merchantToken) {
+        fetchMerchantOrders();
+        fetchMerchantReviews();
+      }
     }, 10000);
     return () => clearInterval(timer);
   }, [clientCategory, clientSearch, clientRadius, clientToken, merchantToken, apiUrl]);
@@ -412,13 +419,11 @@ export default function App() {
   const fetchMerchantReviews = async () => {
     try {
       if (!merchantStore) return;
-      const res = await fetch(`${apiUrl}/api/orders`, { // fetch all completed orders with ratings
+      const res = await fetch(`${apiUrl}/api/orders/ratings`, {
         headers: { 'Authorization': `Bearer ${merchantToken}` }
       });
       const data = await res.json();
-      // Simulating loading reviews by finding matching ratings, but since we have a clean API
-      // We can fetch from backend orders or ratings. Let's do it cleanly.
-      // For now we'll just mock ratings details associated or grab from simulated ratings.
+      if (res.ok) setMerchantReviews(data);
     } catch (e) {
       console.error(e);
     }
@@ -1238,13 +1243,23 @@ export default function App() {
 
                                 {order.status === 'claimed' && (
                                   <div style={{ width: '100%' }}>
-                                    <button
-                                      className="btn-submit"
-                                      style={{ width: '100%', background: '#3b82f6', color: '#fff' }}
-                                      onClick={() => setRatingOrder(order)}
-                                    >
-                                      給予這次美味剩食評價
-                                    </button>
+                                    {order.isRated ? (
+                                      <button
+                                        className="btn-submit"
+                                        style={{ width: '100%', background: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)', border: '1px solid rgba(255,255,255,0.05)', cursor: 'default' }}
+                                        disabled
+                                      >
+                                        已完成美味評價
+                                      </button>
+                                    ) : (
+                                      <button
+                                        className="btn-submit"
+                                        style={{ width: '100%', background: '#3b82f6', color: '#fff' }}
+                                        onClick={() => setRatingOrder(order)}
+                                      >
+                                        給予這次美味剩食評價
+                                      </button>
+                                    )}
                                   </div>
                                 )}
 
@@ -1959,33 +1974,33 @@ export default function App() {
                       顧客完成取貨後給予的星級評分與評價內容，我們將依此維持剩食共享平台的高信任度。
                     </p>
 
-                    {/* Simulated reviews database queries */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                          <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>剩食終結者 小明</span>
-                          <span style={{ color: '#f59e0b', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
-                            <Star size={12} fill="#f59e0b" /> <Star size={12} fill="#f59e0b" /> <Star size={12} fill="#f59e0b" /> <Star size={12} fill="#f59e0b" /> <Star size={12} fill="#f59e0b" /> 5.0
-                          </span>
+                      {merchantReviews.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#6b7280', background: 'var(--bg-secondary)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                          <Star size={32} style={{ marginBottom: '0.5rem', opacity: 0.5 }} />
+                          <p style={{ fontSize: '0.8rem' }}>目前本店尚無顧客美味回饋評價</p>
                         </div>
-                        <p style={{ fontSize: '0.8rem', color: '#f3f4f6' }}>「貝果加熱後非常香軟，完全不像即期剩食！下次一定會再搶購，愛心環保又省錢！」</p>
-                        <div style={{ fontSize: '0.65rem', color: '#6b7280', marginTop: '0.5rem' }}>
-                          品項：手作起司香草貝果 | 2026-07-01 19:15
-                        </div>
-                      </div>
-                      
-                      <div style={{ background: 'var(--bg-secondary)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '12px', padding: '1rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                          <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>綠色小幫手 麗雅</span>
-                          <span style={{ color: '#f59e0b', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
-                            <Star size={12} fill="#f59e0b" /> <Star size={12} fill="#f59e0b" /> <Star size={12} fill="#f59e0b" /> <Star size={12} fill="#f59e0b" /> <Star size={12} style={{ color: '#6b7280' }} /> 4.0
-                          </span>
-                        </div>
-                        <p style={{ fontSize: '0.8rem', color: '#f3f4f6' }}>「豬肉便當份量很夠，包裝完整，老闆態度很親切，支持減碳綠色生活！」</p>
-                        <div style={{ fontSize: '0.65rem', color: '#6b7280', marginTop: '0.5rem' }}>
-                          品項：煙燻起司豬肉便當 | 2026-06-30 20:30
-                        </div>
-                      </div>
+                      ) : (
+                        merchantReviews.map(review => (
+                          <div key={review.id} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '1rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                              <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{review.buyerName}</span>
+                              <span style={{ color: '#f59e0b', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
+                                {[1, 2, 3, 4, 5].map(star => (
+                                  <Star key={star} size={12} fill={review.storeRating >= star ? '#f59e0b' : 'none'} style={{ color: review.storeRating >= star ? '#f59e0b' : '#6b7280' }} />
+                                ))}
+                                <span style={{ marginLeft: '0.25rem', fontWeight: 700 }}>{review.storeRating.toFixed(1)}</span>
+                              </span>
+                            </div>
+                            <p style={{ fontSize: '0.8rem', color: '#f3f4f6' }}>
+                              {review.comment || '（此顧客僅給予評分，未留下文字評價）'}
+                            </p>
+                            <div style={{ fontSize: '0.65rem', color: '#6b7280', marginTop: '0.5rem' }}>
+                              品項：{review.foodName} | {new Date(review.createdAt).toLocaleString('zh-TW', { hour12: false }).substring(0, 16)}
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 )}

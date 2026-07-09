@@ -802,6 +802,24 @@ export default function App() {
     return <span>{timeLeft}</span>;
   };
 
+  const handleSwitchToMobile = () => {
+    setSplitViewTab('mobile');
+    fetchClientFoods();
+    if (clientToken) {
+      fetchClientOrders();
+      fetchClientNotifications();
+    }
+  };
+
+  const handleSwitchToMerchant = () => {
+    setSplitViewTab('merchant');
+    if (merchantToken) {
+      fetchMerchantListings();
+      fetchMerchantOrders();
+      fetchMerchantReviews();
+    }
+  };
+
   return (
     <div className="app-wrapper">
       {/* 1. Global Header */}
@@ -837,13 +855,13 @@ export default function App() {
       <div className="view-switcher-tabs">
         <button
           className={`tab-btn ${splitViewTab === 'mobile' ? 'active' : ''}`}
-          onClick={() => setSplitViewTab('mobile')}
+          onClick={handleSwitchToMobile}
         >
           買家 APP 端
         </button>
         <button
           className={`tab-btn ${splitViewTab === 'merchant' ? 'active' : ''}`}
-          onClick={() => setSplitViewTab('merchant')}
+          onClick={handleSwitchToMerchant}
         >
           商家後台端
         </button>

@@ -159,18 +159,12 @@ body {
   }
 }
 
-/* Tab Switcher for Smaller Screens */
+/* Tab Switcher for Screens */
 .view-switcher-tabs {
-  display: none;
+  display: flex;
   justify-content: center;
   gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-@media (max-width: 1024px) {
-  .view-switcher-tabs {
-    display: flex;
-  }
+  margin-bottom: 1.5rem;
 }
 
 .tab-btn {

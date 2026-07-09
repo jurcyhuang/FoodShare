@@ -10,6 +10,7 @@ export interface User {
   role: 'user' | 'store';
   creditScore: number;
   avatar: string;
+  phone?: string;
 }
 
 export interface Store {
@@ -140,6 +141,9 @@ class Database {
         await pool.query('SELECT NOW()'); // connection health check
         console.log('PostgreSQL connection verified.');
 
+        // 確保 users 資料表擁有 phone 欄位，方便後續編輯個人資料
+        await pool.query('ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "phone" VARCHAR(50) DEFAULT \'\'');
+
         // Load all tables into memory (Write-Through Cache model)
         const usersRes = await pool.query('SELECT * FROM "users"');
         const storesRes = await pool.query('SELECT * FROM "stores"');
@@ -212,7 +216,8 @@ class Database {
       passwordHash: buyerHash,
       role: 'user',
       creditScore: 100,
-      avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=xiaoming'
+      avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=xiaoming',
+      phone: '0912-123456'
     };
 
     const storeUser: User = {
@@ -222,7 +227,8 @@ class Database {
       passwordHash: storeHash,
       role: 'store',
       creditScore: 100,
-      avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=bagel'
+      avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=bagel',
+      phone: '0912-654321'
     };
 
     const demoStore: Store = {
@@ -293,8 +299,8 @@ class Database {
     if (isPg && pool) {
       try {
         console.log('Seeding demo accounts to PostgreSQL...');
-        await pool.query('INSERT INTO "users" (id, email, username, "passwordHash", role, "creditScore", avatar) VALUES ($1, $2, $3, $4, $5, $6, $7)', [buyerUser.id, buyerUser.email, buyerUser.username, buyerUser.passwordHash, buyerUser.role, buyerUser.creditScore, buyerUser.avatar]);
-        await pool.query('INSERT INTO "users" (id, email, username, "passwordHash", role, "creditScore", avatar) VALUES ($1, $2, $3, $4, $5, $6, $7)', [storeUser.id, storeUser.email, storeUser.username, storeUser.passwordHash, storeUser.role, storeUser.creditScore, storeUser.avatar]);
+        await pool.query('INSERT INTO "users" (id, email, username, "passwordHash", role, "creditScore", avatar, phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [buyerUser.id, buyerUser.email, buyerUser.username, buyerUser.passwordHash, buyerUser.role, buyerUser.creditScore, buyerUser.avatar, buyerUser.phone || '']);
+        await pool.query('INSERT INTO "users" (id, email, username, "passwordHash", role, "creditScore", avatar, phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [storeUser.id, storeUser.email, storeUser.username, storeUser.passwordHash, storeUser.role, storeUser.creditScore, storeUser.avatar, storeUser.phone || '']);
         await pool.query('INSERT INTO "stores" (id, "userId", name, logo, address, latitude, longitude, phone, description, rating, "reviewCount") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)', [demoStore.id, demoStore.userId, demoStore.name, demoStore.logo, demoStore.address, demoStore.latitude, demoStore.longitude, demoStore.phone, demoStore.description, demoStore.rating, demoStore.reviewCount]);
         for (const food of demoFoods) {
           await pool.query('INSERT INTO "foods" (id, "storeId", name, category, "originalPrice", price, quantity, "expiryTime", "pickupStart", "pickupEnd", latitude, longitude, "photoUrl", allergens, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)', [food.id, food.storeId, food.name, food.category, food.originalPrice, food.price, food.quantity, food.expiryTime, food.pickupStart, food.pickupEnd, food.latitude, food.longitude, food.photoUrl, food.allergens, food.status]);
@@ -337,8 +343,8 @@ class Database {
     this.saveLocal();
     if (isPg && pool) {
       pool.query(
-        'INSERT INTO "users" (id, email, username, "passwordHash", role, "creditScore", avatar) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-        [user.id, user.email, user.username, user.passwordHash, user.role, user.creditScore, user.avatar]
+        'INSERT INTO "users" (id, email, username, "passwordHash", role, "creditScore", avatar, phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+        [user.id, user.email, user.username, user.passwordHash, user.role, user.creditScore, user.avatar, user.phone || '']
       ).catch(err => console.error('PG insert user error:', err));
     }
     return user;
@@ -352,6 +358,24 @@ class Database {
       pgUpdate('users', id, updates);
     }
     return this.data.users[idx];
+  }
+  deleteUser(id: string): void {
+    const store = this.getStoreByUserId(id);
+    this.data.users = this.data.users.filter(u => u.id !== id);
+    if (store) {
+      this.data.stores = this.data.stores.filter(s => s.id !== store.id);
+      this.data.foods = this.data.foods.filter(f => f.storeId !== store.id);
+    }
+    this.data.orders = this.data.orders.filter(o => o.buyerId !== id && (!store || o.storeId !== store.id));
+    this.data.ratings = this.data.ratings.filter(r => r.buyerId !== id && (!store || r.storeId !== store.id));
+    this.data.notifications = this.data.notifications.filter(n => n.userId !== id);
+    
+    this.saveLocal();
+    
+    if (isPg && pool) {
+      pool.query('DELETE FROM "users" WHERE id = $1', [id])
+        .catch(err => console.error('PG delete user error:', err));
+    }
   }
 
   // Stores API

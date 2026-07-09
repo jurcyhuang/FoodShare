@@ -166,7 +166,26 @@ export default function App() {
   const [merchantRegName, setMerchantRegName] = useState('');
   const [merchantRegStoreName, setMerchantRegStoreName] = useState('');
   const [merchantRegAddress, setMerchantRegAddress] = useState('台北市大安區新生南路三段');
-  
+  // Edit Profile and Password Reset States
+  const [editUsername, setEditUsername] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+  const [editAvatar, setEditAvatar] = useState('');
+  const [editStoreName, setEditStoreName] = useState('');
+  const [editStoreLogo, setEditStoreLogo] = useState('');
+  const [editStorePhone, setEditStorePhone] = useState('');
+  const [editStoreAddress, setEditStoreAddress] = useState('');
+  const [editStoreDescription, setEditStoreDescription] = useState('');
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [forgotPasswordModal, setForgotPasswordModal] = useState<'buyer' | 'merchant' | null>(null);
+  const [resetPasswordToken, setResetPasswordToken] = useState('');
+  const [resetPasswordNewPassword, setResetPasswordNewPassword] = useState('');
+  const [resetPasswordSuccessMessage, setResetPasswordSuccessMessage] = useState('');
+  const [resetPasswordDemoCode, setResetPasswordDemoCode] = useState('');
+
   // Sockets & Timers
   const wsClientRef = useRef<WebSocket | null>(null);
   const toastTimeoutRef = useRef<any>(null);
@@ -431,6 +450,202 @@ export default function App() {
       if (res.ok) setMerchantReviews(data);
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  // Profile Management & Password Reset Operations
+  const startEditingProfile = () => {
+    if (clientUser && splitViewTab === 'mobile') {
+      setEditUsername(clientUser.username || '');
+      setEditEmail(clientUser.email || '');
+      setEditPhone(clientUser.phone || '');
+      setEditPassword('');
+      setEditAvatar(clientUser.avatar || '');
+      setIsEditingProfile(true);
+    } else if (merchantUser && splitViewTab === 'merchant') {
+      setEditUsername(merchantUser.username || '');
+      setEditEmail(merchantUser.email || '');
+      setEditPhone(merchantUser.phone || '');
+      setEditPassword('');
+      setEditAvatar(merchantUser.avatar || '');
+      
+      if (merchantStore) {
+        setEditStoreName(merchantStore.name || '');
+        setEditStoreLogo(merchantStore.logo || '');
+        setEditStorePhone(merchantStore.phone || '');
+        setEditStoreAddress(merchantStore.address || '');
+        setEditStoreDescription(merchantStore.description || '');
+      }
+      setIsEditingProfile(true);
+    }
+  };
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 1.0 * 1024 * 1024) {
+        alert('大頭貼照片大小不能超過 1MB！');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditAvatar(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleStoreLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 1.0 * 1024 * 1024) {
+        alert('商標照片大小不能超過 1MB！');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditStoreLogo(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const token = splitViewTab === 'mobile' ? clientToken : merchantToken;
+    if (!token) return;
+
+    try {
+      const payload = {
+        username: editUsername,
+        email: editEmail,
+        phone: editPhone,
+        password: editPassword || undefined,
+        avatar: editAvatar || undefined,
+        storeName: splitViewTab === 'merchant' ? editStoreName : undefined,
+        logo: splitViewTab === 'merchant' ? editStoreLogo : undefined,
+        storePhone: splitViewTab === 'merchant' ? editStorePhone : undefined,
+        address: splitViewTab === 'merchant' ? editStoreAddress : undefined,
+        description: splitViewTab === 'merchant' ? editStoreDescription : undefined
+      };
+
+      const res = await fetch(`${apiUrl}/api/auth/update-profile`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || '更新個人資料成功！');
+        setIsEditingProfile(false);
+        if (splitViewTab === 'mobile') {
+          setClientUser(data.user);
+          fetchClientProfile();
+          fetchClientFoods();
+        } else {
+          setMerchantUser(data.user);
+          setMerchantStore(data.store);
+          fetchMerchantProfile();
+          fetchMerchantListings();
+        }
+      } else {
+        alert(data.error || '更新個人資料失敗');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('伺服器連線失敗，請稍後再試！');
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${apiUrl}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotPasswordEmail })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setResetPasswordToken('');
+        setResetPasswordNewPassword('');
+        setResetPasswordSuccessMessage('');
+        if (data.token) {
+          setResetPasswordDemoCode(data.token);
+        }
+        alert(data.message || '重設驗證碼已生成，請於下方填入重設密碼！');
+      } else {
+        alert(data.error || '請求失敗');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('連線失敗');
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${apiUrl}/api/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: resetPasswordToken, newPassword: resetPasswordNewPassword })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setResetPasswordSuccessMessage('密碼已成功重設！請使用新密碼登入。');
+        setForgotPasswordEmail('');
+        setResetPasswordDemoCode('');
+      } else {
+        alert(data.error || '密碼重設失敗');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('連線失敗');
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    const token = splitViewTab === 'mobile' ? clientToken : merchantToken;
+    if (!token) return;
+
+    const confirmMsg = splitViewTab === 'mobile'
+      ? '警告：您確定要永久註銷帳戶嗎？這將永久刪除您的個人基本資料、歷史預訂記錄，且此操作不可逆！'
+      : '警告：您確定要永久註銷帳戶嗎？這將永久下架您所有的剩食商品，並刪除您的店舖及所有核銷評價，且此操作不可逆！';
+
+    if (!window.confirm(confirmMsg)) return;
+    if (!window.confirm('請再次確認：您真的決定要抹除所有個人隱私資料並永久註銷嗎？')) return;
+
+    try {
+      const res = await fetch(`${apiUrl}/api/auth/delete-account`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || '帳號已成功註銷，謝謝您！');
+        if (splitViewTab === 'mobile') {
+          localStorage.removeItem('fs_client_token');
+          setClientToken(null);
+          setClientUser(null);
+          setClientActiveTab('explore');
+        } else {
+          localStorage.removeItem('fs_merchant_token');
+          setMerchantToken(null);
+          setMerchantUser(null);
+          setMerchantStore(null);
+        }
+        setIsEditingProfile(false);
+      } else {
+        alert(data.error || '註銷失敗');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('連線伺服器出錯，無法完成註銷！');
     }
   };
 
@@ -949,6 +1164,19 @@ export default function App() {
                     >
                       {clientAuthMode === 'login' ? '尚未有帳號？點此註冊' : '已有帳號？點此登入'}
                     </button>
+
+                    {clientAuthMode === 'login' && (
+                      <button
+                        className="btn-link"
+                        style={{ marginTop: '0.2rem', fontSize: '0.75rem', opacity: 0.8 }}
+                        onClick={() => {
+                          setForgotPasswordEmail(clientEmail);
+                          setForgotPasswordModal('buyer');
+                        }}
+                      >
+                        忘記密碼？點此重設
+                      </button>
+                    )}
 
                     <div className="demo-account-box">
                       <h4>快速測試 Demo 帳號</h4>
@@ -1480,7 +1708,15 @@ export default function App() {
                           )}
                         </div>
 
-                        <button className="action-btn-danger" style={{ width: '100%', marginTop: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }} onClick={handleClientLogout}>
+                        <button
+                          className="btn-submit"
+                          style={{ width: '100%', marginTop: '1.5rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', background: 'var(--accent-primary)', color: 'var(--bg-primary)' }}
+                          onClick={startEditingProfile}
+                        >
+                          <User size={14} /> 編輯個人資料與帳戶管理
+                        </button>
+
+                        <button className="action-btn-danger" style={{ width: '100%', marginTop: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }} onClick={handleClientLogout}>
                           <LogOut size={14} /> 登出買家帳號
                         </button>
                       </div>
@@ -1611,6 +1847,19 @@ export default function App() {
                 {merchantAuthMode === 'login' ? '沒有商家帳號？點此註冊' : '已有商家帳號？點此登入'}
               </button>
 
+              {merchantAuthMode === 'login' && (
+                <button
+                  className="btn-link"
+                  style={{ marginTop: '0.2rem', fontSize: '0.75rem', opacity: 0.8 }}
+                  onClick={() => {
+                    setForgotPasswordEmail(merchantEmail);
+                    setForgotPasswordModal('merchant');
+                  }}
+                >
+                  忘記密碼？點此重設
+                </button>
+              )}
+
               <div className="demo-account-box">
                 <h4>快速測試 Demo 帳號</h4>
                 <p>點選下方按鈕直接一鍵登入：</p>
@@ -1656,6 +1905,15 @@ export default function App() {
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
                     目前店舖評分: <span style={{ color: '#f59e0b', fontWeight: 700 }}><Star size={12} style={{ display: 'inline', verticalAlign: 'text-top' }} fill="#f59e0b" /> {merchantStore?.rating}</span> ({merchantStore?.reviewCount} 則評價)
                   </div>
+
+                  <button
+                    className="btn-submit"
+                    style={{ width: '100%', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', background: 'var(--accent-primary)', color: 'var(--bg-primary)', padding: '0.5rem', fontSize: '0.8rem', fontWeight: 600 }}
+                    onClick={startEditingProfile}
+                  >
+                    <User size={14} /> 編輯店舖與帳戶資料
+                  </button>
+
                   <button
                     className="action-btn-danger"
                     style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}
@@ -2141,6 +2399,307 @@ export default function App() {
                 確認搶購預訂
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Forgot Password Dialog */}
+      {forgotPasswordModal && (
+        <div className="payment-modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="payment-modal" style={{ maxWidth: '400px' }}>
+            <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+              <Shield size={18} style={{ color: 'var(--accent-primary)' }} /> 忘記密碼 / 重設密碼
+            </h4>
+            
+            {resetPasswordSuccessMessage ? (
+              <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+                <p style={{ color: 'var(--accent-primary)', fontSize: '0.9rem', marginBottom: '1.5rem', fontWeight: 600 }}>
+                  {resetPasswordSuccessMessage}
+                </p>
+                <button
+                  className="btn-submit"
+                  style={{ width: '100%', margin: 0 }}
+                  onClick={() => {
+                    setForgotPasswordModal(null);
+                    setResetPasswordSuccessMessage('');
+                  }}
+                >
+                  關閉視窗並登入
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                  <div className="form-group">
+                    <label>步驟 1：請輸入您的電子信箱</label>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <input
+                        type="email"
+                        placeholder="例如：buyer@foodsave.com"
+                        value={forgotPasswordEmail}
+                        onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                        required
+                        style={{ flex: 1 }}
+                      />
+                      <button type="submit" className="btn-submit" style={{ width: 'auto', margin: 0, padding: '0 1rem', fontSize: '0.8rem' }}>
+                        獲取驗證碼
+                      </button>
+                    </div>
+                  </div>
+                </form>
+
+                {resetPasswordDemoCode && (
+                  <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px dashed var(--accent-primary)', borderRadius: '8px', padding: '0.75rem', fontSize: '0.8rem' }}>
+                    <p style={{ color: 'var(--accent-primary)', fontWeight: 700, marginBottom: '0.2rem' }}>【Demo 測試提醒】</p>
+                    <p style={{ color: '#d1d5db' }}>您的重設驗證碼已生成為：</p>
+                    <div style={{ background: 'var(--bg-primary)', padding: '0.35rem', borderRadius: '4px', textAlign: 'center', margin: '0.35rem 0', fontWeight: 'bold', fontSize: '1rem', color: '#fff', letterSpacing: '2px' }}>
+                      {resetPasswordDemoCode}
+                    </div>
+                    <p style={{ color: '#9ca3af', fontSize: '0.7rem' }}>（此為展示環境，故直接回傳顯示於此。實際環境將寄送至信箱）</p>
+                  </div>
+                )}
+
+                <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1rem' }}>
+                  <div className="form-group">
+                    <label>步驟 2：輸入 6 位數驗證碼</label>
+                    <input
+                      type="text"
+                      placeholder="請輸入剛才獲取的驗證碼"
+                      value={resetPasswordToken}
+                      onChange={(e) => setResetPasswordToken(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>步驟 3：輸入新密碼</label>
+                    <input
+                      type="password"
+                      placeholder="新密碼 (至少 6 位數)"
+                      value={resetPasswordNewPassword}
+                      onChange={(e) => setResetPasswordNewPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="payment-modal-buttons" style={{ marginTop: '0.5rem' }}>
+                    <button type="button" className="btn-cancel" onClick={() => { setForgotPasswordModal(null); setResetPasswordDemoCode(''); }}>
+                      取消關閉
+                    </button>
+                    <button type="submit" className="btn-submit" style={{ margin: 0 }}>
+                      確認重設密碼
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 6. Edit Profile Dialog */}
+      {isEditingProfile && (
+        <div className="payment-modal-overlay" style={{ zIndex: 9998 }}>
+          <div className="payment-modal" style={{ maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.2rem' }}>
+              <User size={18} style={{ color: 'var(--accent-primary)' }} /> 
+              {splitViewTab === 'mobile' ? '編輯個人檔案' : '編輯商家與店舖資料'}
+            </h4>
+            
+            <form onSubmit={handleUpdateProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* Avatar Section */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <label style={{ fontSize: '0.8rem', color: '#9ca3af', fontWeight: 600 }}>個人大頭貼</label>
+                <div style={{ position: 'relative' }}>
+                  <img
+                    src={editAvatar || 'https://api.dicebear.com/7.x/adventurer/svg?seed=xiaoming'}
+                    alt="Avatar"
+                    style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--accent-primary)' }}
+                  />
+                  <label style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    right: 0,
+                    background: 'var(--accent-primary)',
+                    color: '#000',
+                    borderRadius: '50%',
+                    width: '24px',
+                    height: '24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                    margin: 0
+                  }}>
+                    <Upload size={12} />
+                    <input type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
+                  </label>
+                </div>
+              </div>
+
+              {/* User basic fields */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <label>使用者名稱</label>
+                  <input
+                    type="text"
+                    value={editUsername}
+                    onChange={(e) => setEditUsername(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>電子信箱</label>
+                  <input
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>手機號碼</label>
+                  <input
+                    type="text"
+                    placeholder="例如：0912345678"
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                  />
+                </div>
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <label>修改密碼 (留空代表不變更)</label>
+                  <input
+                    type="password"
+                    placeholder="請輸入新密碼 (至少 6 位數)"
+                    value={editPassword}
+                    onChange={(e) => setEditPassword(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Store details (if merchant) */}
+              {splitViewTab === 'merchant' && (
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1rem', marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <h5 style={{ fontSize: '0.9rem', color: '#fff', fontWeight: 700, marginBottom: '0.2rem' }}>店舖資訊設定</h5>
+                  
+                  {/* Store Logo Section */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <label style={{ fontSize: '0.8rem', color: '#9ca3af', fontWeight: 600 }}>店舖商標 (Logo)</label>
+                    <div style={{ position: 'relative' }}>
+                      <img
+                        src={editStoreLogo || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=150'}
+                        alt="Logo"
+                        style={{ width: '80px', height: '80px', borderRadius: '12px', objectFit: 'cover', border: '2px solid var(--accent-primary)' }}
+                      />
+                      <label style={{
+                        position: 'absolute',
+                        bottom: -4,
+                        right: -4,
+                        background: 'var(--accent-primary)',
+                        color: '#000',
+                        borderRadius: '50%',
+                        width: '24px',
+                        height: '24px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                        margin: 0
+                      }}>
+                        <Upload size={12} />
+                        <input type="file" accept="image/*" onChange={handleStoreLogoChange} style={{ display: 'none' }} />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+                    <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                      <label>店舖名稱</label>
+                      <input
+                        type="text"
+                        value={editStoreName}
+                        onChange={(e) => setEditStoreName(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>店舖連絡電話</label>
+                      <input
+                        type="text"
+                        value={editStorePhone}
+                        onChange={(e) => setEditStorePhone(e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>店舖地址</label>
+                      <input
+                        type="text"
+                        value={editStoreAddress}
+                        onChange={(e) => setEditStoreAddress(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                      <label>店舖簡介</label>
+                      <textarea
+                        rows={2}
+                        value={editStoreDescription}
+                        onChange={(e) => setEditStoreDescription(e.target.value)}
+                        style={{
+                          width: '100%',
+                          background: 'var(--bg-secondary)',
+                          border: '1px solid rgba(255,255,255,0.05)',
+                          borderRadius: '8px',
+                          color: '#fff',
+                          padding: '0.5rem',
+                          fontSize: '0.8rem',
+                          outline: 'none',
+                          resize: 'none'
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Form Buttons */}
+              <div className="payment-modal-buttons" style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1rem', marginTop: '0.5rem' }}>
+                <button type="button" className="btn-cancel" onClick={() => setIsEditingProfile(false)}>
+                  取消關閉
+                </button>
+                <button type="submit" className="btn-submit" style={{ margin: 0 }}>
+                  儲存更新資料
+                </button>
+              </div>
+
+              {/* Account Deletion Area */}
+              <div style={{ borderTop: '1px dashed #ef4444', paddingTop: '1rem', marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <h5 style={{ fontSize: '0.85rem', color: '#ef4444', fontWeight: 700, margin: 0 }}>帳戶停用與註銷</h5>
+                <p style={{ fontSize: '0.7rem', color: '#9ca3af', margin: 0 }}>
+                  註銷帳戶會永久下架您所有的資料。如果您有任何尚未核銷或未付款的訂單，系統將禁止註銷。
+                </p>
+                <button
+                  type="button"
+                  onClick={handleDeleteAccount}
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.08)',
+                    color: '#f87171',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    borderRadius: '8px',
+                    padding: '0.5rem 1rem',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    width: '100%',
+                    textAlign: 'center'
+                  }}
+                  className="delete-acc-btn"
+                >
+                  永久刪除帳號與隱私資料
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

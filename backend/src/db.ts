@@ -286,11 +286,76 @@ class Database {
       }
     ];
 
-    this.data.users = [buyerUser, storeUser];
+    // Generate 12 historical mock completed orders and ratings to match demo store stats (4.8 rating, 12 reviews)
+    const mockUsers: User[] = [];
+    const mockOrders: Order[] = [];
+    const mockRatings: Rating[] = [];
+    for (let i = 1; i <= 12; i++) {
+      const mockUserId = `usr_mock_${i}`;
+      const buyerName = [
+        '阿偉', '婷婷', '小華', '老張', '佳佳', '軒軒', 
+        '阿傑', '莉莉', '小明', '阿強', '小麗', '小雅'
+      ][i-1] + ' (模擬顧客)';
+
+      mockUsers.push({
+        id: mockUserId,
+        email: `mock_${i}@foodsave.com`,
+        username: buyerName,
+        passwordHash: 'no-login-for-mock',
+        role: 'user',
+        creditScore: 100,
+        avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=mock_${i}`,
+        phone: ''
+      });
+
+      const orderId = `ord_mock_${i}`;
+      const foodId = i % 2 === 0 ? 'food_1' : 'food_2';
+      const ratingId = `rt_mock_${i}`;
+      
+      mockOrders.push({
+        id: orderId,
+        buyerId: mockUserId,
+        storeId: 'store_demo',
+        foodId,
+        quantity: 1,
+        totalPrice: 65,
+        status: 'claimed',
+        pickupCode: `10000${i}`,
+        createdAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
+        expiresAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000 + 15 * 60 * 1000).toISOString()
+      });
+      
+      mockRatings.push({
+        id: ratingId,
+        orderId,
+        foodId,
+        storeId: 'store_demo',
+        buyerId: mockUserId,
+        qualityRating: 5,
+        storeRating: (i === 4 || i === 8) ? 4 : 5, // Sum = 58 => Avg = 4.83 (rounds to 4.8)
+        comment: [
+          '貝果口感非常好，超有嚼勁，物超所值！',
+          '起司豬肉便當配菜新鮮，加熱後超香！',
+          '包裝完整，服務熱情，大推綠色商店。',
+          '咖啡順口，貝果也是當天現做的，推薦！',
+          '非常支持剩食共享，環保又省錢！',
+          '很棒的店家，取貨流程順暢快捷。',
+          '店員親切，便當份量很夠，下次還會來。',
+          '經典美式搭配貝果，完美的下午茶選擇！',
+          '為地球盡一份心力，東西又超好吃！',
+          '貝果味道純正，大安區即期剩食首選！',
+          '這家店誠信度高，食物新鮮度也沒問題。',
+          '買到賺到，完美的一次剩食共享體驗！'
+        ][i-1],
+        createdAt: new Date(Date.now() - i * 24 * 60 * 60 * 1000 + 3600000).toISOString()
+      });
+    }
+
+    this.data.users = [buyerUser, storeUser, ...mockUsers];
     this.data.stores = [demoStore];
     this.data.foods = demoFoods;
-    this.data.orders = [];
-    this.data.ratings = [];
+    this.data.orders = mockOrders;
+    this.data.ratings = mockRatings;
     this.data.notifications = [];
     
     this.saveLocal();
@@ -299,11 +364,20 @@ class Database {
     if (isPg && pool) {
       try {
         console.log('Seeding demo accounts to PostgreSQL...');
-        await pool.query('INSERT INTO "users" (id, email, username, "passwordHash", role, "creditScore", avatar, phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [buyerUser.id, buyerUser.email, buyerUser.username, buyerUser.passwordHash, buyerUser.role, buyerUser.creditScore, buyerUser.avatar, buyerUser.phone || '']);
-        await pool.query('INSERT INTO "users" (id, email, username, "passwordHash", role, "creditScore", avatar, phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [storeUser.id, storeUser.email, storeUser.username, storeUser.passwordHash, storeUser.role, storeUser.creditScore, storeUser.avatar, storeUser.phone || '']);
-        await pool.query('INSERT INTO "stores" (id, "userId", name, logo, address, latitude, longitude, phone, description, rating, "reviewCount") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)', [demoStore.id, demoStore.userId, demoStore.name, demoStore.logo, demoStore.address, demoStore.latitude, demoStore.longitude, demoStore.phone, demoStore.description, demoStore.rating, demoStore.reviewCount]);
+        await pool.query('INSERT INTO "users" (id, email, username, "passwordHash", role, "creditScore", avatar, phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING', [buyerUser.id, buyerUser.email, buyerUser.username, buyerUser.passwordHash, buyerUser.role, buyerUser.creditScore, buyerUser.avatar, buyerUser.phone || '']);
+        await pool.query('INSERT INTO "users" (id, email, username, "passwordHash", role, "creditScore", avatar, phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING', [storeUser.id, storeUser.email, storeUser.username, storeUser.passwordHash, storeUser.role, storeUser.creditScore, storeUser.avatar, storeUser.phone || '']);
+        for (const u of mockUsers) {
+          await pool.query('INSERT INTO "users" (id, email, username, "passwordHash", role, "creditScore", avatar, phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING', [u.id, u.email, u.username, u.passwordHash, u.role, u.creditScore, u.avatar, u.phone || '']);
+        }
+        await pool.query('INSERT INTO "stores" (id, "userId", name, logo, address, latitude, longitude, phone, description, rating, "reviewCount") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (id) DO NOTHING', [demoStore.id, demoStore.userId, demoStore.name, demoStore.logo, demoStore.address, demoStore.latitude, demoStore.longitude, demoStore.phone, demoStore.description, demoStore.rating, demoStore.reviewCount]);
         for (const food of demoFoods) {
-          await pool.query('INSERT INTO "foods" (id, "storeId", name, category, "originalPrice", price, quantity, "expiryTime", "pickupStart", "pickupEnd", latitude, longitude, "photoUrl", allergens, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)', [food.id, food.storeId, food.name, food.category, food.originalPrice, food.price, food.quantity, food.expiryTime, food.pickupStart, food.pickupEnd, food.latitude, food.longitude, food.photoUrl, food.allergens, food.status]);
+          await pool.query('INSERT INTO "foods" (id, "storeId", name, category, "originalPrice", price, quantity, "expiryTime", "pickupStart", "pickupEnd", latitude, longitude, "photoUrl", allergens, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) ON CONFLICT (id) DO NOTHING', [food.id, food.storeId, food.name, food.category, food.originalPrice, food.price, food.quantity, food.expiryTime, food.pickupStart, food.pickupEnd, food.latitude, food.longitude, food.photoUrl, food.allergens, food.status]);
+        }
+        for (const order of mockOrders) {
+          await pool.query('INSERT INTO "orders" (id, "buyerId", "storeId", "foodId", quantity, "totalPrice", "pickupCode", status, "createdAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (id) DO NOTHING', [order.id, order.buyerId, order.storeId, order.foodId, order.quantity, order.totalPrice, order.pickupCode, order.status, order.createdAt]);
+        }
+        for (const rating of mockRatings) {
+          await pool.query('INSERT INTO "ratings" (id, "orderId", "foodId", "storeId", "buyerId", "qualityRating", "storeRating", comment, "createdAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (id) DO NOTHING', [rating.id, rating.orderId, rating.foodId, rating.storeId, rating.buyerId, rating.qualityRating, rating.storeRating, rating.comment, rating.createdAt]);
         }
         console.log('Seeding PostgreSQL database complete.');
       } catch (err) {

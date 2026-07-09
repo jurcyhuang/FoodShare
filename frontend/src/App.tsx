@@ -1622,8 +1622,26 @@ export default function App() {
                         <div className="user-profile-header">
                           <img src={clientUser?.avatar} alt="avatar" />
                           <h3>{clientUser?.username}</h3>
-                          <div className="status-badge connected" style={{ fontSize: '0.65rem' }}>
+                          <div className="status-badge connected" style={{ fontSize: '0.65rem', marginBottom: '0.75rem' }}>
                             綠色守護者身份
+                          </div>
+                          
+                          {/* 調整按鈕版面配置，移至最上方區塊，免去滑動到底部的困擾 */}
+                          <div style={{ display: 'flex', gap: '0.5rem', width: '100%', padding: '0 0.5rem' }}>
+                            <button
+                              className="btn-submit"
+                              style={{ flex: 1, margin: 0, padding: '0.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', background: 'var(--accent-primary)', color: 'var(--bg-primary)', fontWeight: 700 }}
+                              onClick={startEditingProfile}
+                            >
+                              <User size={12} /> 編輯個人資料
+                            </button>
+                            <button
+                              className="action-btn-danger"
+                              style={{ flex: 1, margin: 0, padding: '0.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}
+                              onClick={handleClientLogout}
+                            >
+                              <LogOut size={12} /> 登出帳號
+                            </button>
                           </div>
                         </div>
 
@@ -1681,7 +1699,7 @@ export default function App() {
                           </div>
                         )}
 
-                        {/* Notifications List */}
+                        {/* Notifications List with Scroll Box & Read/Unread Status Distinction */}
                         <div className="notifications-panel">
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                             <h4 style={{ fontSize: '0.85rem', fontWeight: 700 }}>系統即時通知</h4>
@@ -1693,32 +1711,29 @@ export default function App() {
                             </button>
                           </div>
 
-                          {clientNotifications.length === 0 ? (
-                            <p style={{ fontSize: '0.75rem', color: '#6b7280', textAlign: 'center', padding: '1rem' }}>暫無系統通知</p>
-                          ) : (
-                            clientNotifications.map(n => (
-                              <div key={n.id} className={`notification-item ${!n.read ? 'unread' : ''}`}>
-                                <div style={{ fontWeight: 600 }}>{n.title}</div>
-                                <div style={{ color: '#9ca3af', marginTop: '0.15rem' }}>{n.message}</div>
-                                <div className="notification-item-time">
-                                  {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingRight: '0.2rem' }}>
+                            {clientNotifications.length === 0 ? (
+                              <p style={{ fontSize: '0.75rem', color: '#6b7280', textAlign: 'center', padding: '1rem' }}>暫無系統通知</p>
+                            ) : (
+                              clientNotifications.map(n => (
+                                <div key={n.id} className={`notification-item ${!n.read ? 'unread' : ''}`}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 600 }}>
+                                    <span>{n.title}</span>
+                                    {!n.read && (
+                                      <span style={{ background: 'var(--alert-warn)', color: '#000', fontSize: '0.55rem', padding: '0.05rem 0.35rem', borderRadius: '10px', fontWeight: 800 }}>
+                                        新通知
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div style={{ color: '#9ca3af', marginTop: '0.15rem' }}>{n.message}</div>
+                                  <div className="notification-item-time">
+                                    {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </div>
                                 </div>
-                              </div>
-                            ))
-                          )}
+                              ))
+                            )}
+                          </div>
                         </div>
-
-                        <button
-                          className="btn-submit"
-                          style={{ width: '100%', marginTop: '1.5rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', background: 'var(--accent-primary)', color: 'var(--bg-primary)' }}
-                          onClick={startEditingProfile}
-                        >
-                          <User size={14} /> 編輯個人資料與帳戶管理
-                        </button>
-
-                        <button className="action-btn-danger" style={{ width: '100%', marginTop: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }} onClick={handleClientLogout}>
-                          <LogOut size={14} /> 登出買家帳號
-                        </button>
                       </div>
                     )}
 

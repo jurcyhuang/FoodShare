@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   MapPin, Search, ShoppingBag, User, Plus, Trash2, Star, LogOut,
   Compass, Sparkles, Clock, CreditCard, Bell, Shield, QrCode,
-  Wifi, WifiOff, TrendingUp, Droplet, Leaf, X, ChevronRight, Check, AlertTriangle
+  Wifi, WifiOff, TrendingUp, Droplet, Leaf, X, ChevronRight, Check, AlertTriangle,
+  Upload
 } from 'lucide-react';
 
 // Types matched with backend
@@ -661,6 +662,21 @@ export default function App() {
       fetchClientNotifications();
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 1.5 * 1024 * 1024) {
+        alert('圖片大小不能超過 1.5MB，請選擇較小的圖片或壓縮後上傳！');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewFoodPhoto(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -1748,13 +1764,68 @@ export default function App() {
                         </div>
 
                         <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                          <label>照片 URL (選填，留空將使用分類預設圖)</label>
-                          <input
-                            type="text"
-                            placeholder="https://..."
-                            value={newFoodPhoto}
-                            onChange={(e) => setNewFoodPhoto(e.target.value)}
-                          />
+                          <label>商品照片上傳 (選填，留空將使用分類預設圖)</label>
+                          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginTop: '0.2rem' }}>
+                            <label
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                background: 'var(--bg-tertiary)',
+                                border: '1px dashed var(--accent-primary)',
+                                borderRadius: '8px',
+                                padding: '0.65rem 1rem',
+                                cursor: 'pointer',
+                                fontSize: '0.85rem',
+                                color: 'var(--accent-primary)',
+                                fontWeight: 600,
+                                transition: 'all 0.2s',
+                                margin: 0
+                              }}
+                              className="upload-btn-label"
+                            >
+                              <Upload size={16} /> 選擇照片
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleImageChange}
+                                style={{ display: 'none' }}
+                              />
+                            </label>
+                            
+                            {newFoodPhoto && (
+                              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                <img
+                                  src={newFoodPhoto}
+                                  alt="Preview"
+                                  style={{ width: '48px', height: '48px', borderRadius: '6px', objectFit: 'cover', border: '1px solid rgba(255,255,255,0.1)' }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setNewFoodPhoto('')}
+                                  style={{
+                                    position: 'absolute',
+                                    top: '-6px',
+                                    right: '-6px',
+                                    background: '#ef4444',
+                                    color: '#fff',
+                                    border: 'none',
+                                    borderRadius: '50%',
+                                    width: '16px',
+                                    height: '16px',
+                                    fontSize: '10px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    lineHeight: 1
+                                  }}
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         <div className="form-group" style={{ gridColumn: 'span 2' }}>

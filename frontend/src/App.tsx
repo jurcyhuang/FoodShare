@@ -269,6 +269,7 @@ export default function App() {
       if (merchantToken) {
         fetchMerchantOrders();
         fetchMerchantReviews();
+        fetchMerchantListings();
       }
     }, 10000);
     return () => clearInterval(timer);
@@ -381,9 +382,12 @@ export default function App() {
   // Merchant actions
   const fetchMerchantListings = async () => {
     try {
-      const res = await fetch(`${apiUrl}/api/foods`);
+      if (!merchantStore) return;
+      const res = await fetch(`${apiUrl}/api/foods`, {
+        headers: { 'Authorization': `Bearer ${merchantToken}` }
+      });
       const data = await res.json();
-      if (res.ok && merchantStore) {
+      if (res.ok) {
         // Filter listings owned by this store
         const mine = data.filter((f: Food) => f.storeId === merchantStore.id);
         setMerchantListings(mine);

@@ -67,29 +67,62 @@ router.get('/', (req, res) => {
 
   db.checkExpirations();
 
+  // 解析選填的 Authorization 標頭，判斷是否為商家本人查詢
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  let merchantStoreId: string | null = null;
+
+  if (token) {
+    try {
+      const jwt = require('jsonwebtoken');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'foodsave_secret_key_12345') as any;
+      if (decoded && decoded.role === 'store') {
+        const store = db.getStoreByUserId(decoded.id);
+        if (store) {
+          merchantStoreId = store.id;
+        }
+      }
+    } catch (err) {
+      // 忽略 Token 解析錯誤，視為匿名買家探索
+    }
+  }
+
   let foodsWithDistance: (Food & { distance?: number; storeName: string })[] = [];
 
-  if (lat && lng) {
-    const radiusKm = radius ? Number(radius) : 5;
-    foodsWithDistance = db.getNearbyFoods(Number(lat), Number(lng), radiusKm);
-  } else {
-    // Fallback: return all available foods
-    const allFoods = db.getFoods().filter(f => f.status === 'available' && f.quantity > 0);
-    foodsWithDistance = allFoods.map(food => {
+  if (merchantStoreId) {
+    // 1. 商家流：獲取本店「所有」剩食，不論狀態（銷售中、已預訂、已取貨、已過期均顯示）
+    const storeFoods = db.getFoods().filter(f => f.storeId === merchantStoreId);
+    foodsWithDistance = storeFoods.map(food => {
       const store = db.getStoreById(food.storeId);
       return {
         ...food,
         storeName: store ? store.name : '未知商家'
       };
     });
+  } else {
+    // 2. 買家流：只獲取「銷售中」且數量大於 0 的剩食
+    if (lat && lng) {
+      const radiusKm = radius ? Number(radius) : 5;
+      foodsWithDistance = db.getNearbyFoods(Number(lat), Number(lng), radiusKm);
+    } else {
+      // 備用：獲取所有可供選購的剩食
+      const allFoods = db.getFoods().filter(f => f.status === 'available' && f.quantity > 0);
+      foodsWithDistance = allFoods.map(food => {
+        const store = db.getStoreById(food.storeId);
+        return {
+          ...food,
+          storeName: store ? store.name : '未知商家'
+        };
+      });
+    }
   }
 
-  // Filter by category
+  // 按類別過濾
   if (category) {
     foodsWithDistance = foodsWithDistance.filter(f => f.category === category);
   }
 
-  // Filter by search query
+  // 按關鍵字過濾
   if (search) {
     const q = String(search).toLowerCase();
     foodsWithDistance = foodsWithDistance.filter(

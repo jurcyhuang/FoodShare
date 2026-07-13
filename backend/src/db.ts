@@ -8,7 +8,7 @@ export interface User {
   username: string;
   passwordHash: string;
   role: 'user' | 'store';
-  creditScore: number;
+  tokens: number;
   avatar: string;
   phone?: string;
 }
@@ -143,6 +143,8 @@ class Database {
 
         // 確保 users 資料表擁有 phone 欄位，方便後續編輯個人資料
         await pool.query('ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "phone" VARCHAR(50) DEFAULT \'\'');
+        // 確保 users 資料表擁有 tokens 欄位，支援綠幣交易
+        await pool.query('ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "tokens" INT DEFAULT 100');
 
         // Load all tables into memory (Write-Through Cache model)
         const usersRes = await pool.query('SELECT * FROM "users"');
@@ -152,7 +154,10 @@ class Database {
         const ratingsRes = await pool.query('SELECT * FROM "ratings"');
         const notificationsRes = await pool.query('SELECT * FROM "notifications"');
 
-        this.data.users = usersRes.rows;
+        this.data.users = usersRes.rows.map(r => ({
+          ...r,
+          tokens: r.tokens !== undefined && r.tokens !== null ? Number(r.tokens) : 100
+        }));
         this.data.stores = storesRes.rows.map(r => ({
           ...r,
           latitude: Number(r.latitude),
@@ -215,7 +220,7 @@ class Database {
       username: '剩食終結者 小明',
       passwordHash: buyerHash,
       role: 'user',
-      creditScore: 100,
+      tokens: 500,
       avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=xiaoming',
       phone: '0912-123456'
     };
@@ -226,7 +231,7 @@ class Database {
       username: '好丘貝果大安店長',
       passwordHash: storeHash,
       role: 'store',
-      creditScore: 100,
+      tokens: 500,
       avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=bagel',
       phone: '0912-654321'
     };
@@ -303,7 +308,7 @@ class Database {
         username: buyerName,
         passwordHash: 'no-login-for-mock',
         role: 'user',
-        creditScore: 100,
+        tokens: 100,
         avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=mock_${i}`,
         phone: ''
       });
@@ -364,10 +369,10 @@ class Database {
     if (isPg && pool) {
       try {
         console.log('Seeding demo accounts to PostgreSQL...');
-        await pool.query('INSERT INTO "users" (id, email, username, "passwordHash", role, "creditScore", avatar, phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING', [buyerUser.id, buyerUser.email, buyerUser.username, buyerUser.passwordHash, buyerUser.role, buyerUser.creditScore, buyerUser.avatar, buyerUser.phone || '']);
-        await pool.query('INSERT INTO "users" (id, email, username, "passwordHash", role, "creditScore", avatar, phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING', [storeUser.id, storeUser.email, storeUser.username, storeUser.passwordHash, storeUser.role, storeUser.creditScore, storeUser.avatar, storeUser.phone || '']);
+        await pool.query('INSERT INTO "users" (id, email, username, "passwordHash", role, tokens, avatar, phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING', [buyerUser.id, buyerUser.email, buyerUser.username, buyerUser.passwordHash, buyerUser.role, buyerUser.tokens, buyerUser.avatar, buyerUser.phone || '']);
+        await pool.query('INSERT INTO "users" (id, email, username, "passwordHash", role, tokens, avatar, phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING', [storeUser.id, storeUser.email, storeUser.username, storeUser.passwordHash, storeUser.role, storeUser.tokens, storeUser.avatar, storeUser.phone || '']);
         for (const u of mockUsers) {
-          await pool.query('INSERT INTO "users" (id, email, username, "passwordHash", role, "creditScore", avatar, phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING', [u.id, u.email, u.username, u.passwordHash, u.role, u.creditScore, u.avatar, u.phone || '']);
+          await pool.query('INSERT INTO "users" (id, email, username, "passwordHash", role, tokens, avatar, phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING', [u.id, u.email, u.username, u.passwordHash, u.role, u.tokens, u.avatar, u.phone || '']);
         }
         await pool.query('INSERT INTO "stores" (id, "userId", name, logo, address, latitude, longitude, phone, description, rating, "reviewCount") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (id) DO NOTHING', [demoStore.id, demoStore.userId, demoStore.name, demoStore.logo, demoStore.address, demoStore.latitude, demoStore.longitude, demoStore.phone, demoStore.description, demoStore.rating, demoStore.reviewCount]);
         for (const food of demoFoods) {
@@ -417,8 +422,8 @@ class Database {
     this.saveLocal();
     if (isPg && pool) {
       pool.query(
-        'INSERT INTO "users" (id, email, username, "passwordHash", role, "creditScore", avatar, phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
-        [user.id, user.email, user.username, user.passwordHash, user.role, user.creditScore, user.avatar, user.phone || '']
+        'INSERT INTO "users" (id, email, username, "passwordHash", role, tokens, avatar, phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+        [user.id, user.email, user.username, user.passwordHash, user.role, user.tokens, user.avatar, user.phone || '']
       ).catch(err => console.error('PG insert user error:', err));
     }
     return user;
@@ -639,18 +644,15 @@ class Database {
             }
             if (isPg && pool) pgUpdate('foods', food.id, { quantity: food.quantity, status: food.status });
           }
-          // Penalize credit score for reserved cancel (no-show)
+          // 逾期未取：綠幣已於下單時扣除，超過 15 分鐘不予退款
           const user = this.getUserById(o.buyerId);
           if (user) {
-            user.creditScore = Math.max(0, user.creditScore - 15);
-            if (isPg && pool) pgUpdate('users', user.id, { creditScore: user.creditScore });
-
             // Notify user
             const notification = {
               id: Math.random().toString(36).substring(2, 9),
               userId: user.id,
-              title: '預訂已逾期取消',
-              message: `您的預訂 #${o.id} 已超過 15 分鐘取貨時間而被自動取消，信用分數扣除 15 分（目前：${user.creditScore} 分）。`,
+              title: '預訂逾期取消（不予退款）',
+              message: `您的預訂 #${o.id} 已超過 15 分鐘取貨時間而被自動取消。因已超過 15 分鐘取消退款期限，該筆訂單所扣除的 ${o.totalPrice} 綠幣將不予退還。`,
               read: false,
               createdAt: now.toISOString()
             };

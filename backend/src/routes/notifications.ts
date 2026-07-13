@@ -51,7 +51,7 @@ router.get('/stats', authenticateToken, (req: AuthenticatedRequest, res: Respons
     foodSavedKg,
     co2OffsetKg,
     waterSavedLiters,
-    creditScore: user.creditScore
+    tokens: user.tokens
   });
 });
 

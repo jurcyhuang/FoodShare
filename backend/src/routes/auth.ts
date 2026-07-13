@@ -31,7 +31,7 @@ router.post('/register', (req, res) => {
     username,
     passwordHash,
     role: role === 'store' ? 'store' : 'user',
-    creditScore: 100,
+    tokens: 100,
     avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(username)}`,
     phone: phone || ''
   };
@@ -67,7 +67,7 @@ router.post('/register', (req, res) => {
       email: newUser.email,
       username: newUser.username,
       role: newUser.role,
-      creditScore: newUser.creditScore,
+      tokens: newUser.tokens,
       avatar: newUser.avatar,
       phone: newUser.phone || ''
     },
@@ -99,7 +99,7 @@ router.post('/login', (req, res) => {
       email: user.email,
       username: user.username,
       role: user.role,
-      creditScore: user.creditScore,
+      tokens: user.tokens,
       avatar: user.avatar,
       phone: user.phone || ''
     },
@@ -118,7 +118,7 @@ router.get('/me', authenticateToken, (req: AuthenticatedRequest, res: Response) 
       email: user.email,
       username: user.username,
       role: user.role,
-      creditScore: user.creditScore,
+      tokens: user.tokens,
       avatar: user.avatar,
       phone: user.phone || ''
     },
@@ -211,11 +211,42 @@ router.post('/update-profile', authenticateToken, (req: AuthenticatedRequest, re
       email: updatedUser.email,
       username: updatedUser.username,
       role: updatedUser.role,
-      creditScore: updatedUser.creditScore,
+      tokens: updatedUser.tokens,
       avatar: updatedUser.avatar,
       phone: updatedUser.phone || ''
     },
     store: updatedStore
+  });
+});
+
+// POST /api/auth/deposit - 模擬綠幣儲值
+router.post('/deposit', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+  const user = req.user!;
+  const { amount } = req.body;
+
+  const depositAmount = Number(amount);
+  if (isNaN(depositAmount) || depositAmount <= 0) {
+    return res.status(400).json({ error: '儲值金額必須為大於 0 的有效數字' });
+  }
+
+  const currentTokens = user.tokens || 0;
+  const newTokens = currentTokens + depositAmount;
+
+  db.updateUser(user.id, { tokens: newTokens });
+
+  const updatedUser = db.getUserById(user.id)!;
+
+  res.json({
+    message: `成功儲值 NT$ ${depositAmount} 元！已為您加值 ${depositAmount} 綠幣。`,
+    user: {
+      id: updatedUser.id,
+      email: updatedUser.email,
+      username: updatedUser.username,
+      role: updatedUser.role,
+      tokens: updatedUser.tokens,
+      avatar: updatedUser.avatar,
+      phone: updatedUser.phone || ''
+    }
   });
 });
 

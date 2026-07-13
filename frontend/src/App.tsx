@@ -76,7 +76,7 @@ interface Stats {
   foodSavedKg: number;
   co2OffsetKg: number;
   waterSavedLiters: number;
-  creditScore: number;
+  tokens: number;
 }
 
 const getCategoryPlaceholder = (category: string) => {
@@ -126,6 +126,11 @@ export default function App() {
 
   // Client simulated toast
   const [clientToast, setClientToast] = useState<{ title: string; message: string } | null>(null);
+
+  // Wallet Deposit states
+  const [depositModal, setDepositModal] = useState(false);
+  const [depositAmount, setDepositAmount] = useState('500');
+  const [isDepositing, setIsDepositing] = useState(false);
 
   // Merchant Session State
   const [merchantToken, setMerchantToken] = useState<string | null>(localStorage.getItem('fs_merchant_token'));
@@ -692,6 +697,47 @@ export default function App() {
     }
   };
 
+  const handleDepositTokens = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientToken) return;
+
+    const amount = Number(depositAmount);
+    if (isNaN(amount) || amount <= 0) {
+      alert('儲值金額必須為大於 0 的有效數字');
+      return;
+    }
+
+    setIsDepositing(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/auth/deposit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${clientToken}`
+        },
+        body: JSON.stringify({ amount })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setClientUser(data.user);
+        setDepositModal(false);
+        // Show success toast
+        setClientToast({
+          title: '儲值成功',
+          message: data.message || `成功加值 ${amount} 綠幣到您的帳戶！`
+        });
+        fetchClientProfile();
+      } else {
+        alert(data.error || '儲值失敗');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('無法連線至伺服器');
+    } finally {
+      setIsDepositing(false);
+    }
+  };
+
   const handleClientLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     try {
@@ -787,7 +833,7 @@ export default function App() {
         body: JSON.stringify({
           foodId: paymentModalOrder.foodId,
           quantity: paymentModalOrder.quantity,
-          paymentMethod: selectedPaymentMethod
+          paymentMethod: 'token'
         })
       });
       const data = await res.json();
@@ -798,6 +844,7 @@ export default function App() {
         setClientActiveTab('orders');
         fetchClientOrders();
         fetchClientFoods();
+        fetchClientProfile(); // 刷新綠幣餘額
       } else {
         alert(data.error || '預訂失敗');
       }
@@ -813,15 +860,18 @@ export default function App() {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${clientToken}` }
       });
+      const data = await res.json();
       if (res.ok) {
+        alert(data.message || '預訂已成功取消');
         fetchClientOrders();
         fetchClientFoods();
+        fetchClientProfile(); // 重新整理綠幣餘額
       } else {
-        const d = await res.json();
-        alert(d.error || '取消失敗');
+        alert(data.error || '取消失敗');
       }
     } catch (e) {
       console.error(e);
+      alert('連線失敗');
     }
   };
 
@@ -1211,8 +1261,16 @@ export default function App() {
                             </div>
                           </div>
 
-                          <div className="credit-badge">
-                            <Shield size={12} /> 信用分: {clientUser?.creditScore}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <div className="credit-badge" style={{ background: 'rgba(16,185,129,0.15)', color: 'var(--accent-primary)', border: '1px solid rgba(16,185,129,0.3)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                              <span>🪙 綠幣: {clientUser?.tokens || 0}</span>
+                            </div>
+                            <button 
+                              onClick={() => setDepositModal(true)} 
+                              style={{ background: 'var(--accent-primary)', color: '#000', border: 'none', borderRadius: '12px', padding: '0.2rem 0.6rem', fontSize: '0.65rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.15rem' }}
+                            >
+                              <Plus size={10} /> 儲值
+                            </button>
                           </div>
                         </div>
 
@@ -1497,15 +1555,6 @@ export default function App() {
                                 )}
 
                                 {/* Buttons based on status */}
-                                {order.status === 'pending_payment' && (
-                                  <button
-                                    className="btn-submit"
-                                    style={{ width: '100%' }}
-                                    onClick={() => payForOrder(order.id)}
-                                  >
-                                    線上模擬信用卡付款 (${order.totalPrice})
-                                  </button>
-                                )}
 
                                 {order.status === 'claimed' && (
                                   <div style={{ width: '100%' }}>
@@ -1690,9 +1739,9 @@ export default function App() {
                                 </div>
                               </div>
                               <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.5rem', borderRadius: '6px', textAlign: 'center' }}>
-                                <div style={{ fontSize: '0.65rem', color: '#9ca3af' }}>信用分數</div>
+                                <div style={{ fontSize: '0.65rem', color: '#9ca3af' }}>帳戶綠幣餘額</div>
                                 <div style={{ fontSize: '1rem', fontWeight: 800, color: '#f59e0b', marginTop: '0.15rem' }}>
-                                  {clientStats.creditScore} <span style={{ fontSize: '0.7rem' }}>分</span>
+                                  {clientStats.tokens} <span style={{ fontSize: '0.7rem' }}>綠幣</span>
                                 </div>
                               </div>
                             </div>
@@ -2229,7 +2278,7 @@ export default function App() {
                             <th>數量</th>
                             <th>訂單總金額</th>
                             <th>顧客姓名</th>
-                            <th>顧客信用分</th>
+                            <th>支付方式</th>
                             <th>狀態</th>
                             <th>操作 / 核銷</th>
                           </tr>
@@ -2250,7 +2299,7 @@ export default function App() {
                                 <td style={{ fontWeight: 700, color: '#10b981' }}>${order.totalPrice}</td>
                                 <td>{order.buyerName}</td>
                                 <td>
-                                  <span style={{ color: '#60a5fa', fontWeight: 600 }}>100 分</span>
+                                  <span style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>綠幣全額折抵</span>
                                 </td>
                                 <td>
                                   <span className={`status-indicator ${order.status}`}>
@@ -2379,42 +2428,175 @@ export default function App() {
       </main>
 
       {/* 4. One-click booking payment selection dialog (Client side) */}
-      {paymentModalOrder && (
-        <div className="payment-modal-overlay">
-          <div className="payment-modal">
-            <h4>選擇預訂付款方式</h4>
-            
-            <div
-              className={`payment-option ${selectedPaymentMethod === 'online' ? 'selected' : ''}`}
-              onClick={() => setSelectedPaymentMethod('online')}
-            >
-              <CreditCard size={18} style={{ color: '#10b981' }} />
-              <div className="payment-option-info">
-                <span className="payment-option-title">線上信用卡/行動支付</span>
-                <span className="payment-option-desc">預先扣款授權，享極速退款</span>
+      {paymentModalOrder && (() => {
+        const checkoutFood = foods.find(f => f.id === paymentModalOrder.foodId);
+        const totalCost = checkoutFood ? checkoutFood.price * paymentModalOrder.quantity : 0;
+        const currentBalance = clientUser?.tokens || 0;
+        const hasEnoughTokens = currentBalance >= totalCost;
+        
+        return (
+          <div className="payment-modal-overlay">
+            <div className="payment-modal" style={{ maxWidth: '400px' }}>
+              <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+                🪙 綠幣結帳確認
+              </h4>
+              
+              {checkoutFood && (
+                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '0.8rem', borderRadius: '8px', marginBottom: '1rem', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '0.2rem' }}>{checkoutFood.name}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#9ca3af', display: 'flex', justifyContent: 'space-between', marginTop: '0.4rem' }}>
+                    <span>單價: ${checkoutFood.price}</span>
+                    <span>預訂數量: {paymentModalOrder.quantity} 件</span>
+                  </div>
+                  <div style={{ borderTop: '1px dashed rgba(255,255,255,0.1)', marginTop: '0.6rem', paddingTop: '0.6rem', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
+                    <span>結帳總額:</span>
+                    <span style={{ color: 'var(--accent-primary)' }}>{totalCost} 綠幣</span>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.2rem', fontSize: '0.8rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#9ca3af' }}>目前綠幣餘額:</span>
+                  <span style={{ fontWeight: 600 }}>{currentBalance} 綠幣</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#9ca3af' }}>預計扣除:</span>
+                  <span style={{ color: '#ef4444', fontWeight: 600 }}>-{totalCost} 綠幣</span>
+                </div>
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '0.5rem', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
+                  <span style={{ color: '#9ca3af' }}>扣抵後餘額:</span>
+                  <span style={{ color: hasEnoughTokens ? '#10b981' : '#ef4444' }}>
+                    {currentBalance - totalCost} 綠幣
+                  </span>
+                </div>
+              </div>
+
+              {!hasEnoughTokens && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', padding: '0.6rem', borderRadius: '6px', color: '#ef4444', fontSize: '0.75rem', marginBottom: '1rem' }}>
+                  <AlertTriangle size={14} />
+                  <span>綠幣餘額不足！請先儲值後再行預訂。</span>
+                </div>
+              )}
+
+              <div className="payment-modal-buttons">
+                <button className="btn-cancel" onClick={() => setPaymentModalOrder(null)}>
+                  取消
+                </button>
+                {hasEnoughTokens ? (
+                  <button className="btn-submit" style={{ margin: 0 }} onClick={confirmBookOrder}>
+                    扣抵綠幣並確認預訂
+                  </button>
+                ) : (
+                  <button 
+                    className="btn-submit" 
+                    style={{ margin: 0, background: 'var(--accent-primary)', color: '#000' }}
+                    onClick={() => {
+                      setPaymentModalOrder(null);
+                      setDepositModal(true);
+                    }}
+                  >
+                    前往儲值綠幣
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+      {/* 4.5 Simulated Deposit Modal */}
+      {depositModal && (
+        <div className="payment-modal-overlay" style={{ zIndex: 9999 }}>
+          <form className="payment-modal" style={{ maxWidth: '400px' }} onSubmit={handleDepositTokens}>
+            <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+              🪙 模擬綠幣線上儲值
+            </h4>
+
+            <div style={{ marginBottom: '1.2rem' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#9ca3af', marginBottom: '0.5rem' }}>
+                請選擇儲值金額 (1 TWD = 1 綠幣)：
+              </label>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
+                {['100', '500', '1000'].map(val => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setDepositAmount(val)}
+                    style={{
+                      background: depositAmount === val ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.03)',
+                      color: depositAmount === val ? 'var(--accent-primary)' : 'var(--text-main)',
+                      border: depositAmount === val ? '1px solid var(--accent-primary)' : '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: '8px',
+                      padding: '0.6rem',
+                      fontWeight: 'bold',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ${val} 元
+                  </button>
+                ))}
+              </div>
+
+              <div className="form-group" style={{ margin: 0 }}>
+                <label style={{ display: 'block', fontSize: '0.75rem', color: '#9ca3af', marginBottom: '0.3rem' }}>
+                  或手動輸入金額：
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="number"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(e.target.value)}
+                    placeholder="請輸入大於 0 的金額"
+                    min="1"
+                    style={{
+                      width: '100%',
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: '8px',
+                      padding: '0.6rem 0.6rem 0.6rem 1.5rem',
+                      color: 'var(--text-main)',
+                      fontSize: '0.85rem'
+                    }}
+                    required
+                  />
+                  <span style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: '0.85rem' }}>$</span>
+                </div>
               </div>
             </div>
 
-            <div
-              className={`payment-option ${selectedPaymentMethod === 'cash' ? 'selected' : ''}`}
-              onClick={() => setSelectedPaymentMethod('cash')}
-            >
-              <ShoppingBag size={18} style={{ color: '#3b82f6' }} />
-              <div className="payment-option-info">
-                <span className="payment-option-title">現場取貨付款 (店家支付)</span>
-                <span className="payment-option-desc">信用分高於 80 分可用</span>
+            <div style={{ background: 'rgba(255,255,255,0.02)', padding: '0.8rem', borderRadius: '8px', marginBottom: '1.2rem', fontSize: '0.75rem', color: '#9ca3af', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>目前餘額:</span>
+                <span>{clientUser?.tokens || 0} 綠幣</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>儲值後預計餘額:</span>
+                <span style={{ color: 'var(--accent-primary)', fontWeight: 'bold' }}>
+                  {(clientUser?.tokens || 0) + (Number(depositAmount) || 0)} 綠幣
+                </span>
               </div>
             </div>
 
             <div className="payment-modal-buttons">
-              <button className="btn-cancel" onClick={() => setPaymentModalOrder(null)}>
+              <button
+                type="button"
+                className="btn-cancel"
+                onClick={() => setDepositModal(false)}
+                disabled={isDepositing}
+              >
                 取消
               </button>
-              <button className="btn-submit" style={{ margin: 0 }} onClick={confirmBookOrder}>
-                確認搶購預訂
+              <button
+                type="submit"
+                className="btn-submit"
+                style={{ margin: 0, background: 'var(--accent-primary)', color: '#000' }}
+                disabled={isDepositing}
+              >
+                {isDepositing ? '模擬支付處理中...' : '確認模擬信用卡支付'}
               </button>
             </div>
-          </div>
+          </form>
         </div>
       )}
 

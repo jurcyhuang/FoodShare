@@ -15,13 +15,6 @@ router.post('/', authenticateToken, (req: AuthenticatedRequest, res: Response) =
 
   db.checkExpirations();
 
-  // Check credit score limit for cash payment
-  if (paymentMethod === 'cash' && user.creditScore < 80) {
-    return res.status(400).json({
-      error: `您的信用分數為 ${user.creditScore}，低於現場付款門檻（80分），請選擇線上支付以完成預訂。`
-    });
-  }
-
   const food = db.getFoodById(foodId);
   if (!food) {
     return res.status(404).json({ error: '找不到該剩食項目' });
@@ -31,8 +24,18 @@ router.post('/', authenticateToken, (req: AuthenticatedRequest, res: Response) =
     return res.status(400).json({ error: '抱歉，剩食數量不足或已被預訂完了' });
   }
 
-  // Deduct inventory
   const orderQty = Number(quantity);
+  const totalPrice = food.price * orderQty;
+
+  // 綠幣扣款機制：購買食物一律使用綠幣
+  if ((user.tokens || 0) < totalPrice) {
+    return res.status(400).json({ error: `您的綠幣餘額不足！該商品需要 ${totalPrice} 綠幣，您目前僅有 ${user.tokens || 0} 綠幣。請先進行儲值！` });
+  }
+
+  // 扣除買家綠幣
+  db.updateUser(user.id, { tokens: (user.tokens || 0) - totalPrice });
+
+  // Deduct inventory
   food.quantity -= orderQty;
   if (food.quantity === 0) {
     food.status = 'reserved';
@@ -51,8 +54,8 @@ router.post('/', authenticateToken, (req: AuthenticatedRequest, res: Response) =
     storeId: food.storeId,
     buyerId: user.id,
     quantity: orderQty,
-    totalPrice: food.price * orderQty,
-    status: paymentMethod === 'online' ? 'pending_payment' : 'reserved',
+    totalPrice,
+    status: 'reserved', // 綠幣折抵成功，狀態直接為已預訂已付款
     pickupCode,
     createdAt: now.toISOString(),
     expiresAt
@@ -227,6 +230,33 @@ router.post('/:id/cancel', authenticateToken, (req: AuthenticatedRequest, res: R
 
   db.updateOrder(order.id, { status: 'cancelled' });
 
+  // 綠幣退款機制判斷
+  let refundGiven = false;
+  let cancelMessage = '預訂已成功取消，剩食庫存已歸還。';
+  const buyer = db.getUserById(order.buyerId);
+
+  if (buyer) {
+    if (isSeller) {
+      // 商家取消，全額退款
+      db.updateUser(buyer.id, { tokens: (buyer.tokens || 0) + order.totalPrice });
+      refundGiven = true;
+      cancelMessage = `商家已取消該預訂。該筆訂單所支付的 ${order.totalPrice} 綠幣已全額退還至買家帳戶。`;
+    } else if (isBuyer) {
+      // 買家自己取消：檢查是否在 15 分鐘以內
+      const elapsedMs = Date.now() - new Date(order.createdAt).getTime();
+      const fifteenMins = 15 * 60 * 1000;
+      
+      if (elapsedMs <= fifteenMins) {
+        db.updateUser(buyer.id, { tokens: (buyer.tokens || 0) + order.totalPrice });
+        refundGiven = true;
+        cancelMessage = `預訂已成功取消。由於您在 15 分鐘內取消，已全額退還您支付的 ${order.totalPrice} 綠幣。`;
+      } else {
+        refundGiven = false;
+        cancelMessage = `預訂已取消。由於已超過 15 分鐘取消期限，所支付的 ${order.totalPrice} 綠幣將不予退還。`;
+      }
+    }
+  }
+
   // Send notifications
   if (isBuyer) {
     const storeObj = db.getStoreById(order.storeId);
@@ -235,18 +265,30 @@ router.post('/:id/cancel', authenticateToken, (req: AuthenticatedRequest, res: R
         id: Math.random().toString(36).substring(2, 9),
         userId: storeObj.userId,
         title: '使用者取消了預訂',
-        message: `訂單 #${order.id} 已被買家主動取消，剩食庫存已自動歸還。`,
+        message: `訂單 #${order.id} 已被買家主動取消，剩食庫存已歸還。`,
         read: false,
         createdAt: new Date().toISOString()
       });
     }
-  } else {
-    // Notify buyer
+    
+    // 給買家的取消明細通知
     db.createNotification({
       id: Math.random().toString(36).substring(2, 9),
       userId: order.buyerId,
-      title: '您的預訂已被商家取消',
-      message: `很抱歉，您的預訂 #${order.id} 已被商家取消。如有扣款，款項將退回您的帳戶。`,
+      title: refundGiven ? '預訂取消成功（已退款）' : '預訂取消成功（不予退款）',
+      message: refundGiven 
+        ? `您的預訂 #${order.id} 已成功取消，全額退還您支付的 ${order.totalPrice} 綠幣。`
+        : `您的預訂 #${order.id} 已成功取消。由於已超過 15 分鐘取消期限，支付的 ${order.totalPrice} 綠幣將不予退還。`,
+      read: false,
+      createdAt: new Date().toISOString()
+    });
+  } else {
+    // Notify buyer (商家主動取消)
+    db.createNotification({
+      id: Math.random().toString(36).substring(2, 9),
+      userId: order.buyerId,
+      title: '您的預訂已被商家取消（已退款）',
+      message: `很抱歉，您的預訂 #${order.id} 已被商家取消。您支付的 ${order.totalPrice} 綠幣已全額退回您的帳戶。`,
       read: false,
       createdAt: new Date().toISOString()
     });
@@ -256,7 +298,7 @@ router.post('/:id/cancel', authenticateToken, (req: AuthenticatedRequest, res: R
     (global as any).broadcastOrderUpdate({ ...order, status: 'cancelled' }, 'order_cancelled');
   }
 
-  res.json({ message: '預訂已成功取消，剩食庫存已歸還' });
+  res.json({ message: cancelMessage, refundGiven });
 });
 
 // POST /api/orders/:id/complete - 完成取貨核銷 (限商家或持代碼驗證)
@@ -288,19 +330,15 @@ router.post('/:id/complete', authenticateToken, (req: AuthenticatedRequest, res:
   // Update order status
   db.updateOrder(order.id, { status: 'claimed' });
 
-  // Update buyer credit score (Reward positive completion, up to 100)
+  // 更新買家通知 (核銷成功不贈送綠幣，已扣款)
   const buyer = db.getUserById(order.buyerId);
   if (buyer) {
-    const currentScore = buyer.creditScore;
-    const newScore = Math.min(100, currentScore + 1);
-    db.updateUser(buyer.id, { creditScore: newScore });
-
     // Notify buyer
     db.createNotification({
       id: Math.random().toString(36).substring(2, 9),
       userId: buyer.id,
       title: '交易完成！感謝您攜手守護剩食',
-      message: `您已成功領取預訂 #${order.id}。信用積分 +1（目前：${newScore} 分）。快來為這次的剩食留下評價吧！`,
+      message: `您已成功領取預訂 #${order.id}。本次交易已順利完成，快來為這次的剩食留下美味評價吧！`,
       read: false,
       createdAt: new Date().toISOString()
     });
